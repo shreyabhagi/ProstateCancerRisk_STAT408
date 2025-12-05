@@ -1,0 +1,248 @@
+---
+title: "STAT 408 Final Project"
+author: "Shreya Bhagi"
+format: pdf
+editor: visual
+---
+
+**1. Data Import**
+
+```{r}
+library(tidyverse) 
+library(MASS)       
+library(lmtest)    
+
+prostate <- read.csv("/Users/shreyabhagi/Desktop/StatFinal/synthetic_prostate_cancer_risk.csv")
+
+str(prostate)
+head(prostate)
+summary(prostate)
+```
+
+**2. Data Exploration & Preparation**
+
+```{r}
+colSums(is.na(prostate))
+```
+
+```{r}
+prostate <- prostate %>%
+  mutate(
+    risk_level = factor(
+      risk_level,
+      levels  = c("Low","Medium","High"),
+      ordered = TRUE
+    ),
+    risk_numeric = as.numeric(risk_level),
+
+    smoker                  = factor(smoker),
+    alcohol_consumption     = factor(alcohol_consumption,
+                                     levels  = c("None","Moderate","High"),
+                                     ordered = TRUE),
+    diet_type               = factor(diet_type,
+                                     levels  = c("Fatty","Mixed","Healthy"),
+                                     ordered = TRUE),
+    physical_activity_level = factor(physical_activity_level,
+                                     levels  = c("Low","Moderate","High"),
+                                     ordered = TRUE),
+    family_history          = factor(family_history),
+    mental_stress_level     = factor(mental_stress_level,
+                                     levels  = c("Low","Medium","High"),
+                                     ordered = TRUE),
+    regular_health_checkup  = factor(regular_health_checkup),
+    prostate_exam_done      = factor(prostate_exam_done)
+  )
+
+summary(prostate$risk_level)
+```
+
+```{r}
+barplot(
+  table(prostate$risk_level),
+  main = "Distribution of Prostate Cancer Risk Levels",
+  xlab = "Risk Level",
+  ylab = "Count"
+)
+
+boxplot(
+  age ~ risk_level,
+  data = prostate,
+  main = "Age Distribution Across Risk Levels",
+  xlab = "Risk Level",
+  ylab = "Age (years)"
+)
+```
+
+```{r}
+cor(prostate[, c("age","bmi","sleep_hours")])
+```
+
+**3. Baseline Multiple Linear Regression**
+
+```{r}
+lm_full <- lm(
+  risk_numeric ~ age + bmi + smoker + alcohol_consumption +
+    diet_type + physical_activity_level + family_history +
+    mental_stress_level + sleep_hours +
+    regular_health_checkup + prostate_exam_done,
+  data = prostate
+)
+
+summary(lm_full)
+```
+
+```{r}
+par(mfrow = c(1,2))
+plot(lm_full, which = 1)
+```
+
+```{r}
+plot(lm_full, which = 2)
+par(mfrow = c(1,1))
+```
+
+```{r}
+bptest(lm_full)
+```
+
+```{r}
+ks.test(rstandard(lm_full), "pnorm")
+```
+
+**4. Ordinal Logistic Regression**
+
+```{r}
+ord_main <- polr(
+  risk_level ~ age + bmi + smoker + alcohol_consumption +
+    diet_type + physical_activity_level + family_history +
+    mental_stress_level + sleep_hours +
+    regular_health_checkup + prostate_exam_done,
+  data = prostate,
+  Hess = TRUE
+)
+
+summary(ord_main)
+```
+
+```{r}
+ord_int_full <- polr(
+  risk_level ~ age + bmi + smoker + alcohol_consumption +
+    diet_type + physical_activity_level + family_history +
+    mental_stress_level + sleep_hours +
+    regular_health_checkup + prostate_exam_done +
+    age:physical_activity_level + age:family_history,
+  data = prostate,
+  Hess = TRUE
+)
+
+summary(ord_int_full)
+```
+
+```{r}
+ord_final <- step(ord_int_full,
+                  direction = "backward",
+                  trace = 0)
+
+summary(ord_final)
+```
+
+```{r}
+ctable_final <- coef(summary(ord_final))
+p_vals_final <- 2 * pnorm(abs(ctable_final[, "t value"]), lower.tail = FALSE)
+results_final <- cbind(ctable_final, "p value" = p_vals_final)
+results_final
+```
+
+```{r}
+AIC(ord_main, ord_int_full, ord_final)
+```
+
+**5. Odd Ratios for Final Model**
+
+```{r}
+ORs <- exp(coef(ord_final))
+final_OR_table <- data.frame(
+  Predictor  = names(ORs),
+  Odds_Ratio = as.numeric(ORs)
+)
+final_OR_table
+```
+
+**6. Predicted Probabilities Plot**
+
+```{r}
+newdat <- expand.grid(
+  age        = seq(min(prostate$age), max(prostate$age), length.out = 100),
+  act_group  = c("Low","Active")
+)
+
+newdat <- newdat %>%
+  mutate(
+    physical_activity_level = ifelse(act_group == "Low", "Low", "High"),
+    physical_activity_level = factor(
+      physical_activity_level,
+      levels  = levels(prostate$physical_activity_level),
+      ordered = is.ordered(prostate$physical_activity_level)
+    ),
+
+    bmi                   = mean(prostate$bmi),
+    smoker                = "No",
+    alcohol_consumption   = "None",
+    diet_type             = "Mixed",
+    family_history        = "No",
+    mental_stress_level   = "Medium",
+    sleep_hours           = mean(prostate$sleep_hours),
+    regular_health_checkup = "No",
+    prostate_exam_done     = "No"
+  )
+
+newdat <- newdat %>%
+  mutate(
+    smoker                = factor(smoker, levels = levels(prostate$smoker)),
+    alcohol_consumption   = factor(alcohol_consumption,
+                                   levels  = levels(prostate$alcohol_consumption),
+                                   ordered = is.ordered(prostate$alcohol_consumption)),
+    diet_type             = factor(diet_type,
+                                   levels  = levels(prostate$diet_type),
+                                   ordered = is.ordered(prostate$diet_type)),
+    family_history        = factor(family_history,
+                                   levels = levels(prostate$family_history)),
+    mental_stress_level   = factor(mental_stress_level,
+                                   levels  = levels(prostate$mental_stress_level),
+                                   ordered = is.ordered(prostate$mental_stress_level)),
+    regular_health_checkup = factor(regular_health_checkup,
+                                    levels = levels(prostate$regular_health_checkup)),
+    prostate_exam_done     = factor(prostate_exam_done,
+                                    levels = levels(prostate$prostate_exam_done))
+  )
+```
+
+```{r}
+pred_probs <- predict(ord_final, newdat, type = "probs")
+pred_df <- cbind(newdat, as.data.frame(pred_probs))
+```
+
+```{r}
+ggplot(pred_df,
+       aes(x = age, y = High, color = act_group)) +
+  geom_line() +
+  labs(
+    title = "Predicted Probability of High Prostate Cancer Risk",
+    x = "Age (years)",
+    y = "P(Risk Level = High)",
+    color = "Physical Activity Group"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+prostate %>%
+  group_by(risk_level) %>%
+  summarize(
+    n           = n(),
+    mean_age    = mean(age),
+    mean_bmi    = mean(bmi),
+    prop_smoker = mean(smoker == "Yes"),
+    prop_famhx  = mean(family_history == "Yes")
+  )
+```
