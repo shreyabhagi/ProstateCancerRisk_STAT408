@@ -18,6 +18,11 @@ This project highlights my experience working with structured healthcare dataset
 
 Tools Used: R, Quarto, ggplot2, MASS, dplyr
 
+Files Included:
+- PDF report with full analysis
+- Quarto source code
+- Dataset source linked below
+
 Dataset Source:https://www.kaggle.com/datasets/miadul/prostate-cancer-risk-and-lifestyle-synthetic-dataset 
 
 Note: This project was originally completed as an academic statistical modeling project. The PDF reflects the original analysis environment, including a local file path reference, but the repository contains the full reproducible workflow and methodology.
