@@ -12,7 +12,7 @@ library(tidyverse)
 library(MASS)       
 library(lmtest)    
 
-prostate <- read.csv("/Users/shreyabhagi/Desktop/StatFinal/synthetic_prostate_cancer_risk.csv")
+prostate <- read.csv("synthetic_prostate_cancer_risk.csv")
 
 str(prostate)
 head(prostate)
